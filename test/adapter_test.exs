@@ -1,5 +1,5 @@
-defmodule Ear.AdapterTest.CompleteOnly do
-  @behaviour Ear.Model.Adapter
+defmodule Harnex.AdapterTest.CompleteOnly do
+  @behaviour Harnex.Model.Adapter
   defstruct text: "fallback"
 
   @impl true
@@ -9,7 +9,7 @@ defmodule Ear.AdapterTest.CompleteOnly do
   end
 end
 
-defmodule Ear.AdapterTest.ContextAdapter do
+defmodule Harnex.AdapterTest.ContextAdapter do
   defstruct [:owner]
 
   def complete(%__MODULE__{owner: owner}, _request, context) do
@@ -18,15 +18,15 @@ defmodule Ear.AdapterTest.ContextAdapter do
   end
 end
 
-defmodule Ear.AdapterTest.LegacyModule do
+defmodule Harnex.AdapterTest.LegacyModule do
   def complete(_request, _context), do: {:ok, %{text: "legacy"}}
 end
 
-defmodule Ear.AdapterTest.LegacyContext do
+defmodule Harnex.AdapterTest.LegacyContext do
   def complete(_request, context), do: {:ok, %{text: context[:workspace] || "missing"}}
 end
 
-defmodule Ear.AdapterTest.LiveStream do
+defmodule Harnex.AdapterTest.LiveStream do
   def complete(_adapter, _request, _context), do: {:ok, %{text: "fallback"}}
 
   def stream(_adapter, _request, context) do
@@ -42,13 +42,13 @@ defmodule Ear.AdapterTest.LiveStream do
   end
 end
 
-defmodule Ear.AdapterTest do
+defmodule Harnex.AdapterTest do
   use ExUnit.Case, async: false
-  alias Ear.AdapterTest.CompleteOnly
+  alias Harnex.AdapterTest.CompleteOnly
 
   test "struct adapters fall back to complete when streaming is unavailable" do
     assert {:ok, %{text: "fallback"}, events} =
-             Ear.run_with_events("hello", adapter: %CompleteOnly{}, stream: true)
+             Harnex.run_with_events("hello", adapter: %CompleteOnly{}, stream: true)
 
     assert Enum.map(events, & &1.type) == [
              :run_started,
@@ -60,14 +60,14 @@ defmodule Ear.AdapterTest do
 
   test "module adapters fall back to complete when streaming is unavailable" do
     assert {:ok, %{text: "module fallback"}} =
-             Ear.run("hello", adapter: CompleteOnly, stream: true)
+             Harnex.run("hello", adapter: CompleteOnly, stream: true)
   end
 
   test "model adapters receive run context" do
-    adapter = %Ear.AdapterTest.ContextAdapter{owner: self()}
+    adapter = %Harnex.AdapterTest.ContextAdapter{owner: self()}
 
     assert {:ok, %{text: "context"}} =
-             Ear.run("hello",
+             Harnex.run("hello",
                adapter: adapter,
                workspace: "/tmp",
                tool_context: %{trace: "yes"}
@@ -81,21 +81,21 @@ defmodule Ear.AdapterTest do
 
   test "legacy module complete/2 adapters remain supported" do
     assert {:ok, %{text: "legacy"}} =
-             Ear.run("hello", adapter: Ear.AdapterTest.LegacyModule)
+             Harnex.run("hello", adapter: Harnex.AdapterTest.LegacyModule)
   end
 
   test "legacy module adapters receive the run context" do
     assert {:ok, %{text: "/tmp"}} =
-             Ear.run("hello",
-               adapter: Ear.AdapterTest.LegacyContext,
+             Harnex.run("hello",
+               adapter: Harnex.AdapterTest.LegacyContext,
                workspace: "/tmp"
              )
   end
 
   test "live adapter chunks reach subscribers before completion" do
     {:ok, run_id, _pid} =
-      Ear.start_run("hello",
-        adapter: Ear.AdapterTest.LiveStream,
+      Harnex.start_run("hello",
+        adapter: Harnex.AdapterTest.LiveStream,
         stream: true,
         tool_context: %{test_pid: self()},
         subscriber: self()
@@ -103,10 +103,10 @@ defmodule Ear.AdapterTest do
 
     assert_receive {:stream_started, _token}, 1_000
 
-    assert_receive {:ear, %{run_id: ^run_id, type: :message_delta, payload: %{text: "live"}}},
+    assert_receive {:harnex, %{run_id: ^run_id, type: :message_delta, payload: %{text: "live"}}},
                    1_000
 
-    assert_receive {:ear, %{run_id: ^run_id, type: :message_completed}}, 1_000
-    assert_receive {:ear, %{run_id: ^run_id, type: :run_completed}}, 1_000
+    assert_receive {:harnex, %{run_id: ^run_id, type: :message_completed}}, 1_000
+    assert_receive {:harnex, %{run_id: ^run_id, type: :run_completed}}, 1_000
   end
 end

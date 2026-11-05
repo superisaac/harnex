@@ -12,7 +12,7 @@ function setSidebarVisible(visible, persist = true) {
   toggle.textContent = visible ? 'Hide sidebar' : 'Show sidebar';
   if (persist) {
     try {
-      localStorage.setItem('ear.sidebar', visible ? 'visible' : 'hidden');
+      localStorage.setItem('harnex.sidebar', visible ? 'visible' : 'hidden');
     } catch (_) {
       // Storage can be unavailable in private browsing contexts.
     }
@@ -21,7 +21,7 @@ function setSidebarVisible(visible, persist = true) {
 
 let sidebarVisible = true;
 try {
-  sidebarVisible = localStorage.getItem('ear.sidebar') !== 'hidden';
+  sidebarVisible = localStorage.getItem('harnex.sidebar') !== 'hidden';
 } catch (_) {
   // Storage can be unavailable in private browsing contexts.
 }

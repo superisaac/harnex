@@ -1,9 +1,9 @@
-defmodule Ear.UserConfigTest do
+defmodule Harnex.UserConfigTest do
   use ExUnit.Case, async: false
-  alias Ear.Config.User
+  alias Harnex.Config.User
 
   setup do
-    dir = Path.join(System.tmp_dir!(), "ear-config-#{System.unique_integer([:positive])}")
+    dir = Path.join(System.tmp_dir!(), "harnex-config-#{System.unique_integer([:positive])}")
     on_exit(fn -> File.rm_rf!(dir) end)
     {:ok, dir: dir}
   end
@@ -119,7 +119,7 @@ defmodule Ear.UserConfigTest do
     with_env("EAR_CONFIG_TEST_TOKEN", "runtime-secret", fn ->
       assert {:ok, opts} = User.prepare_tui(config_dir: dir)
 
-      assert %Ear.Model.OpenAI{
+      assert %Harnex.Model.OpenAI{
                model: "gateway-model",
                endpoint: "https://gateway.example/v1/chat/completions",
                api_key: "runtime-secret"
@@ -152,7 +152,7 @@ defmodule Ear.UserConfigTest do
       assert overridden[:adapter].model == "override"
       assert overridden[:adapter].endpoint == "https://override.example/chat/completions"
       refute overridden[:stream]
-      fake = Ear.Model.Scripted.new([%{text: "ok"}])
+      fake = Harnex.Model.Scripted.new([%{text: "ok"}])
       assert {:ok, injected} = User.prepare_tui(config_dir: dir, adapter: fake)
       assert injected[:adapter] == fake
     end)
@@ -166,7 +166,7 @@ defmodule Ear.UserConfigTest do
       with_env("OPENAI_API_KEY", "wrong-provider-secret", fn ->
         assert {:ok, opts} = User.prepare_tui(config_dir: dir)
         assert is_nil(opts[:adapter].api_key)
-        assert {:error, %{reason: :missing_api_key}} = Ear.run("test", adapter: opts[:adapter])
+        assert {:error, %{reason: :missing_api_key}} = Harnex.run("test", adapter: opts[:adapter])
       end)
     end)
   end
@@ -287,9 +287,9 @@ defmodule Ear.UserConfigTest do
 
     with_env("EAR_CONFIG_TEST_TOKEN", "initial", fn ->
       assert {:ok, opts} = User.prepare_tui(config_dir: dir)
-      session = Ear.TUI.Session.new(run_opts: opts)
+      session = Harnex.TUI.Session.new(run_opts: opts)
       System.put_env("EAR_CONFIG_TEST_TOKEN", "refreshed")
-      {session, {:message, _}} = Ear.TUI.Session.handle(session, {:command, "login", ""})
+      {session, {:message, _}} = Harnex.TUI.Session.handle(session, {:command, "login", ""})
       assert session.run_opts[:adapter].api_key == "refreshed"
       assert session.run_opts[:adapter].model == "gateway-model"
       assert session.run_opts[:adapter].endpoint == opts[:adapter].endpoint

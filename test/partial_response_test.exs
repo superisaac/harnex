@@ -1,4 +1,4 @@
-defmodule Ear.PartialResponseTest.Adapter do
+defmodule Harnex.PartialResponseTest.Adapter do
   defstruct [:owner, chunks: [%{type: :text_delta, text: "hello"}]]
 
   def complete(_adapter, _request, _context), do: {:error, :stream_required}
@@ -24,15 +24,15 @@ defmodule Ear.PartialResponseTest.Adapter do
   end
 end
 
-defmodule Ear.PartialResponseTest do
+defmodule Harnex.PartialResponseTest do
   use ExUnit.Case, async: false
-  alias Ear.{Conversation.Transcript, Events.Event}
-  alias Ear.PartialResponseTest.Adapter
+  alias Harnex.{Conversation.Transcript, Events.Event}
+  alias Harnex.PartialResponseTest.Adapter
 
   test "cancellation preserves streamed text in the snapshot and terminal event" do
     {run_id, worker} = start_stream()
     monitor = Process.monitor(worker)
-    assert :ok = Ear.cancel(run_id)
+    assert :ok = Harnex.cancel(run_id)
     assert_partial(run_id, :run_cancelled, :cancelled)
     assert_receive {:DOWN, ^monitor, :process, ^worker, _}
   end
@@ -46,7 +46,7 @@ defmodule Ear.PartialResponseTest do
   test "multiple live batches are accumulated in order" do
     {run_id, worker} = start_stream()
     send(worker, {:emit, [%{type: :text_delta, text: " world"}]})
-    assert_receive {:ear, %{run_id: ^run_id, type: :message_delta, payload: %{text: " world"}}}
+    assert_receive {:harnex, %{run_id: ^run_id, type: :message_delta, payload: %{text: " world"}}}
     send(worker, {:return, {:error, :provider_unavailable}})
     assert_partial(run_id, :run_failed, :provider_unavailable, "hello world")
   end
@@ -98,12 +98,12 @@ defmodule Ear.PartialResponseTest do
           %{tool_calls: List.duplicate(%{id: "one", name: "echo", args: "x"}, 2)}
         ] do
       assert {:error, %{reason: :malformed_model_response}, events} =
-               Ear.run_with_events("test", adapter: Ear.Model.Scripted.new([response]))
+               Harnex.run_with_events("test", adapter: Harnex.Model.Scripted.new([response]))
 
       assert Enum.count(events, &Event.terminal?/1) == 1
       refute Enum.any?(events, &(&1.type == :tool_call_started))
       run_id = hd(events).run_id
-      assert {:ok, %{status: :failed}} = Ear.get_run(run_id)
+      assert {:ok, %{status: :failed}} = Harnex.get_run(run_id)
     end
   end
 
@@ -128,7 +128,7 @@ defmodule Ear.PartialResponseTest do
     adapter = %Adapter{owner: self(), chunks: [delta]}
 
     assert {:ok, run_id, _pid} =
-             Ear.start_run("test", adapter: adapter, stream: true, subscriber: self())
+             Harnex.start_run("test", adapter: adapter, stream: true, subscriber: self())
 
     assert_receive {:stream_worker, worker}
     send(worker, {:return, {:error, :provider_unavailable}})
@@ -138,20 +138,20 @@ defmodule Ear.PartialResponseTest do
   end
 
   test "tool continuation does not duplicate the prior streamed assistant message" do
-    {run_id, worker} = start_stream(tools: Ear.Tools.Registry.new([Ear.Tools.Echo]))
+    {run_id, worker} = start_stream(tools: Harnex.Tools.Registry.new([Harnex.Tools.Echo]))
 
     send(worker, {
       :return,
       {:ok, %{text: "hello", tool_calls: [%{id: "call", name: "echo", args: "result"}]}}
     })
 
-    assert_receive {:ear, %{run_id: ^run_id, type: :tool_call_completed}}
+    assert_receive {:harnex, %{run_id: ^run_id, type: :tool_call_completed}}
     assert_receive {:stream_worker, next_worker}
-    assert_receive {:ear, %{run_id: ^run_id, type: :message_delta, payload: %{text: "hello"}}}
+    assert_receive {:harnex, %{run_id: ^run_id, type: :message_delta, payload: %{text: "hello"}}}
     send(next_worker, {:return, {:error, :provider_unavailable}})
     events = collect_terminal(run_id)
     assert List.last(events).payload.partial_result.text == "hello"
-    assert {:ok, %{transcript: transcript}} = Ear.get_run(run_id)
+    assert {:ok, %{transcript: transcript}} = Harnex.get_run(run_id)
     messages = Transcript.to_list(transcript)
     assert Enum.map(messages, & &1.role) == [:user, :assistant, :tool, :assistant]
     refute Enum.at(messages, 1).metadata[:partial]
@@ -164,14 +164,14 @@ defmodule Ear.PartialResponseTest do
     events = collect_terminal(run_id)
     assert List.last(events).type == :run_completed
     refute Map.has_key?(List.last(events).payload, :partial_result)
-    assert {:ok, %{transcript: transcript}} = Ear.get_run(run_id)
+    assert {:ok, %{transcript: transcript}} = Harnex.get_run(run_id)
     assert Enum.map(Transcript.to_list(transcript), & &1.content) == ["test", "hello"]
     refute Transcript.last(transcript).metadata[:partial]
   end
 
   test "empty text remains a valid explicit completion" do
     assert {:ok, %{text: ""}} =
-             Ear.run("test", adapter: Ear.Model.Scripted.new([%{text: ""}]))
+             Harnex.run("test", adapter: Harnex.Model.Scripted.new([%{text: ""}]))
   end
 
   defp start_stream(opts \\ []) do
@@ -181,10 +181,10 @@ defmodule Ear.PartialResponseTest do
         opts
       )
 
-    assert {:ok, run_id, _pid} = Ear.start_run("test", opts)
+    assert {:ok, run_id, _pid} = Harnex.start_run("test", opts)
     assert_receive {:stream_worker, worker}, 1_000
 
-    assert_receive {:ear, %{run_id: ^run_id, type: :message_delta, payload: %{text: "hello"}}},
+    assert_receive {:harnex, %{run_id: ^run_id, type: :message_delta, payload: %{text: "hello"}}},
                    1_000
 
     {run_id, worker}
@@ -204,19 +204,19 @@ defmodule Ear.PartialResponseTest do
              event.type == :message_completed and event.payload[:partial] == true
            end) == 1
 
-    assert {:ok, %{transcript: transcript}} = Ear.get_run(run_id)
+    assert {:ok, %{transcript: transcript}} = Harnex.get_run(run_id)
     assert Enum.map(Transcript.to_list(transcript), & &1.content) == ["test", text]
     message = Transcript.last(transcript)
     assert message.id == message_id
     assert message.metadata.partial
     assert message.metadata.reason == reason
-    refute_receive {:ear, %{run_id: ^run_id}}, 20
+    refute_receive {:harnex, %{run_id: ^run_id}}, 20
     events
   end
 
   defp collect_terminal(run_id, events \\ []) do
     receive do
-      {:ear, %{run_id: ^run_id} = event} ->
+      {:harnex, %{run_id: ^run_id} = event} ->
         if Event.terminal?(event),
           do: Enum.reverse([event | events]),
           else: collect_terminal(run_id, [event | events])

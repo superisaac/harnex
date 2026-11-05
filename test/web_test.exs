@@ -1,4 +1,4 @@
-defmodule Ear.WebTest do
+defmodule Harnex.WebTest do
   use ExUnit.Case, async: false
 
   defmodule RecordingAdapter do
@@ -36,7 +36,7 @@ defmodule Ear.WebTest do
 
   setup do
     start_supervised!(
-      {Ear.Web, config: false, port: 0, adapter: %RecordingAdapter{owner: self()}}
+      {Harnex.Web, config: false, port: 0, adapter: %RecordingAdapter{owner: self()}}
     )
 
     :ok
@@ -63,7 +63,7 @@ defmodule Ear.WebTest do
       |> Plug.Conn.put_req_header("content-type", "application/json")
       |> Plug.Conn.put_req_header("cookie", cookie)
       |> Plug.Conn.put_req_header("x-csrf-token", token)
-      |> Ear.Web.Endpoint.call(Ear.Web.Endpoint.init([]))
+      |> Harnex.Web.Endpoint.call(Harnex.Web.Endpoint.init([]))
 
     assert response.status == 200
     await_status(:completed)
@@ -76,64 +76,64 @@ defmodule Ear.WebTest do
   end
 
   test "retains conversation context and clears it for a new conversation" do
-    assert {:error, :empty_prompt} = Ear.Web.Session.prompt("  ")
-    assert :ok = Ear.Web.Session.prompt("First")
+    assert {:error, :empty_prompt} = Harnex.Web.Session.prompt("  ")
+    assert :ok = Harnex.Web.Session.prompt("First")
     assert_receive {:request, request}
     assert Enum.map(request.messages, & &1.content) == ["First"]
     await_status(:completed)
 
-    assert :ok = Ear.Web.Session.prompt("Second")
+    assert :ok = Harnex.Web.Session.prompt("Second")
     assert_receive {:request, request}
     assert Enum.map(request.messages, & &1.content) == ["First", "Hello <script>", "Second"]
     await_status(:completed)
-    assert Ear.Web.Session.state().usage == %{input: 22, output: 14, cached: 6}
-    assert :ok = Ear.Web.Session.clear()
-    assert %{status: :idle, messages: [], run_id: nil} = Ear.Web.Session.state()
+    assert Harnex.Web.Session.state().usage == %{input: 22, output: 14, cached: 6}
+    assert :ok = Harnex.Web.Session.clear()
+    assert %{status: :idle, messages: [], run_id: nil} = Harnex.Web.Session.state()
   end
 
   test "rejects concurrent prompts and cancels an active run" do
-    stop_supervised(Ear.Web)
+    stop_supervised(Harnex.Web)
 
     start_supervised!(
-      {Ear.Web, config: false, port: 0, adapter: %Ear.TestSupport.BlockingAdapter{owner: self()}}
+      {Harnex.Web, config: false, port: 0, adapter: %Harnex.TestSupport.BlockingAdapter{owner: self()}}
     )
 
-    assert :ok = Ear.Web.Session.prompt("Wait")
+    assert :ok = Harnex.Web.Session.prompt("Wait")
     assert_receive {:model_started, _pid}
-    assert {:error, :run_in_progress} = Ear.Web.Session.prompt("Another")
-    assert {:error, :run_in_progress} = Ear.Web.Session.clear()
-    assert :ok = Ear.Web.Session.cancel()
+    assert {:error, :run_in_progress} = Harnex.Web.Session.prompt("Another")
+    assert {:error, :run_in_progress} = Harnex.Web.Session.clear()
+    assert :ok = Harnex.Web.Session.cancel()
     await_status(:cancelled)
   end
 
   test "shows streamed output and terminal errors" do
-    stop_supervised(Ear.Web)
+    stop_supervised(Harnex.Web)
 
     start_supervised!(
-      {Ear.Web,
-       config: false, port: 0, adapter: Ear.Model.Scripted.new([%{text: "Streamed reply"}])}
+      {Harnex.Web,
+       config: false, port: 0, adapter: Harnex.Model.Scripted.new([%{text: "Streamed reply"}])}
     )
 
-    assert :ok = Ear.Web.Session.prompt("Stream")
+    assert :ok = Harnex.Web.Session.prompt("Stream")
     state = await_status(:completed)
     assert List.last(state.messages).content == "Streamed reply"
     assert state.partial == ""
     assert Enum.any?(state.events, &(&1.type == "message_completed"))
 
-    stop_supervised(Ear.Web)
-    start_supervised!({Ear.Web, config: false, port: 0, adapter: Ear.Model.Scripted.new([])})
-    assert :ok = Ear.Web.Session.prompt("Fail")
+    stop_supervised(Harnex.Web)
+    start_supervised!({Harnex.Web, config: false, port: 0, adapter: Harnex.Model.Scripted.new([])})
+    assert :ok = Harnex.Web.Session.prompt("Fail")
     assert await_status(:failed).error == ":no_scripted_response"
   end
 
   test "displays live partial output without displacing lifecycle events" do
-    stop_supervised(Ear.Web)
+    stop_supervised(Harnex.Web)
 
     start_supervised!(
-      {Ear.Web, config: false, port: 0, adapter: %StreamingAdapter{owner: self()}}
+      {Harnex.Web, config: false, port: 0, adapter: %StreamingAdapter{owner: self()}}
     )
 
-    assert :ok = Ear.Web.Session.prompt("Stream slowly")
+    assert :ok = Harnex.Web.Session.prompt("Stream slowly")
     assert_receive {:stream_started, pid}
     state = await_partial()
     assert state.status == :running
@@ -145,11 +145,11 @@ defmodule Ear.WebTest do
 
   test "validates workspace and task arguments" do
     assert {:error, {:invalid_workspace, _}} =
-             Ear.Web.start_link(config: false, workspace: "/nonexistent/ear-web-workspace")
+             Harnex.Web.start_link(config: false, workspace: "/nonexistent/harnex-web-workspace")
 
-    assert_raise Mix.Error, fn -> Mix.Tasks.Ear.Web.run(["--port", "0"]) end
-    assert_raise Mix.Error, fn -> Mix.Tasks.Ear.Web.run(["--unknown"]) end
-    assert_raise Mix.Error, fn -> Mix.Tasks.Ear.Web.run(["--model-timeout", "-1"]) end
+    assert_raise Mix.Error, fn -> Mix.Tasks.Harnex.Web.run(["--port", "0"]) end
+    assert_raise Mix.Error, fn -> Mix.Tasks.Harnex.Web.run(["--unknown"]) end
+    assert_raise Mix.Error, fn -> Mix.Tasks.Harnex.Web.run(["--model-timeout", "-1"]) end
   end
 
   defp call(method, path, body \\ nil) do
@@ -158,14 +158,14 @@ defmodule Ear.WebTest do
     conn =
       if body, do: Plug.Conn.put_req_header(conn, "content-type", "application/json"), else: conn
 
-    Ear.Web.Endpoint.call(conn, Ear.Web.Endpoint.init([]))
+    Harnex.Web.Endpoint.call(conn, Harnex.Web.Endpoint.init([]))
   end
 
   defp await_status(status, attempts \\ 100)
   defp await_status(_status, 0), do: flunk("Run did not reach the expected status")
 
   defp await_status(status, attempts) do
-    state = Ear.Web.Session.state()
+    state = Harnex.Web.Session.state()
 
     if state.status == status do
       state
@@ -179,7 +179,7 @@ defmodule Ear.WebTest do
   defp await_partial(0), do: flunk("Stream did not produce partial output")
 
   defp await_partial(attempts) do
-    state = Ear.Web.Session.state()
+    state = Harnex.Web.Session.state()
 
     if state.partial != "" do
       state

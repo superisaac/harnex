@@ -1,12 +1,12 @@
-defmodule Ear.SkillsTest do
+defmodule Harnex.SkillsTest do
   use ExUnit.Case, async: true
 
   test "skill loader rejects a symlink escaping its root" do
     root =
-      Path.join(System.tmp_dir!(), "ear-skills-#{System.unique_integer([:positive])}")
+      Path.join(System.tmp_dir!(), "harnex-skills-#{System.unique_integer([:positive])}")
 
     outside =
-      Path.join(System.tmp_dir!(), "ear-skills-out-#{System.unique_integer([:positive])}")
+      Path.join(System.tmp_dir!(), "harnex-skills-out-#{System.unique_integer([:positive])}")
 
     File.mkdir_p!(root)
     File.mkdir_p!(outside)
@@ -15,7 +15,7 @@ defmodule Ear.SkillsTest do
     File.ln_s!(outside, link)
 
     assert {:error, {:path_outside_root, _}} =
-             Ear.Skills.Loader.load_report(Path.join(link, "SKILL.md"), root)
+             Harnex.Skills.Loader.load_report(Path.join(link, "SKILL.md"), root)
 
     File.rm_rf!(root)
     File.rm_rf!(outside)

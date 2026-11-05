@@ -1,10 +1,10 @@
-defmodule Ear.BubblewrapTest do
+defmodule Harnex.BubblewrapTest do
   use ExUnit.Case, async: true
 
-  alias Ear.Tools.Bubblewrap
+  alias Harnex.Tools.Bubblewrap
 
   test "isolates namespaces and mounts only the workspace writable" do
-    workspace = "/tmp/ear workspace"
+    workspace = "/tmp/harnex workspace"
     command = ["/usr/bin/env", "-i", "/bin/sh", "-c", "printf '$HOME'"]
     args = Bubblewrap.arguments(workspace, command)
 
@@ -38,16 +38,16 @@ defmodule Ear.BubblewrapTest do
   end
 end
 
-defmodule Ear.BubblewrapIntegrationTest do
+defmodule Harnex.BubblewrapIntegrationTest do
   use ExUnit.Case, async: false
 
-  @moduletag skip: not Ear.Tools.Bubblewrap.available?()
+  @moduletag skip: not Harnex.Tools.Bubblewrap.available?()
 
   test "strict Linux isolation permits workspace writes and hides host files" do
-    root = Path.join(System.tmp_dir!(), "ear-bwrap-#{System.unique_integer([:positive])}")
+    root = Path.join(System.tmp_dir!(), "harnex-bwrap-#{System.unique_integer([:positive])}")
     workspace = Path.join(root, "workspace")
     secret = Path.join(root, "secret")
-    marker = "/tmp/ear-host-marker-#{System.unique_integer([:positive])}"
+    marker = "/tmp/harnex-host-marker-#{System.unique_integer([:positive])}"
     File.mkdir_p!(workspace)
     File.write!(secret, "host-only")
     File.write!(marker, "host-only")
@@ -60,20 +60,20 @@ defmodule Ear.BubblewrapIntegrationTest do
     context = %{workspace: workspace, shell_isolation: :strict}
 
     assert {:ok, "ok"} =
-             Ear.Tools.Shell.execute(%{"command" => "printf ok > result; cat result"}, context)
+             Harnex.Tools.Shell.execute(%{"command" => "printf ok > result; cat result"}, context)
 
     assert File.read!(Path.join(workspace, "result")) == "ok"
 
     assert {:error, {:exit_status, _, _}} =
-             Ear.Tools.Shell.execute(%{"command" => "cat ../secret"}, context)
+             Harnex.Tools.Shell.execute(%{"command" => "cat ../secret"}, context)
 
     assert {:error, {:exit_status, _, _}} =
-             Ear.Tools.Shell.execute(%{"command" => "printf changed > ../secret"}, context)
+             Harnex.Tools.Shell.execute(%{"command" => "printf changed > ../secret"}, context)
 
     assert File.read!(secret) == "host-only"
 
     assert {:ok, "private"} =
-             Ear.Tools.Shell.execute(
+             Harnex.Tools.Shell.execute(
                %{"command" => "test ! -e #{marker} && printf private"},
                context
              )

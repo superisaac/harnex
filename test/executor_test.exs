@@ -1,4 +1,4 @@
-defmodule Ear.ExecutorTest.FailingTool do
+defmodule Harnex.ExecutorTest.FailingTool do
   def name, do: "failing"
   def description, do: "Exercise tool failure handling."
   def validate(_), do: :ok
@@ -15,24 +15,24 @@ defmodule Ear.ExecutorTest.FailingTool do
   end
 end
 
-defmodule Ear.ExecutorTest do
+defmodule Harnex.ExecutorTest do
   use ExUnit.Case, async: false
 
   test "converts exits and throws to errors" do
-    registry = %{"failing" => Ear.ExecutorTest.FailingTool}
+    registry = %{"failing" => Harnex.ExecutorTest.FailingTool}
 
     assert {:error, {:exit, :boom}} =
-             Ear.Tools.Executor.execute(registry, "failing", %{"kind" => "exit"})
+             Harnex.Tools.Executor.execute(registry, "failing", %{"kind" => "exit"})
 
     assert {:error, {:throw, :boom}} =
-             Ear.Tools.Executor.execute(registry, "failing", %{"kind" => "throw"})
+             Harnex.Tools.Executor.execute(registry, "failing", %{"kind" => "throw"})
   end
 
   test "converts task exits from a worker" do
-    registry = %{"failing" => Ear.ExecutorTest.FailingTool}
+    registry = %{"failing" => Harnex.ExecutorTest.FailingTool}
 
     assert {:error, {:exit, :boom}} =
-             Ear.Tools.Executor.execute_with_timeout(
+             Harnex.Tools.Executor.execute_with_timeout(
                registry,
                "failing",
                %{"kind" => "exit"},
@@ -43,8 +43,8 @@ defmodule Ear.ExecutorTest do
 
   test "an untrappable worker exit does not kill its caller" do
     assert {:error, {:exit, :killed}} =
-             Ear.Tools.Executor.execute_with_timeout(
-               %{"failing" => Ear.ExecutorTest.FailingTool},
+             Harnex.Tools.Executor.execute_with_timeout(
+               %{"failing" => Harnex.ExecutorTest.FailingTool},
                "failing",
                %{"kind" => "kill"},
                %{},
@@ -56,8 +56,8 @@ defmodule Ear.ExecutorTest do
 
   test "a timed out worker is terminated" do
     assert {:error, :tool_timeout} =
-             Ear.Tools.Executor.execute_with_timeout(
-               %{"failing" => Ear.ExecutorTest.FailingTool},
+             Harnex.Tools.Executor.execute_with_timeout(
+               %{"failing" => Harnex.ExecutorTest.FailingTool},
                "failing",
                %{"kind" => "block"},
                %{owner: self()},
@@ -71,15 +71,15 @@ defmodule Ear.ExecutorTest do
 
   test "the agent continues after an untrappable tool exit" do
     adapter =
-      Ear.Model.Scripted.new([
+      Harnex.Model.Scripted.new([
         %{tool_calls: [%{id: "killed-tool", name: "failing", args: %{"kind" => "kill"}}]},
         %{text: "recovered"}
       ])
 
     assert {:ok, %{text: "recovered"}, events} =
-             Ear.run_with_events("try the tool",
+             Harnex.run_with_events("try the tool",
                adapter: adapter,
-               tool_modules: [Ear.ExecutorTest.FailingTool]
+               tool_modules: [Harnex.ExecutorTest.FailingTool]
              )
 
     assert Enum.any?(events, fn event ->

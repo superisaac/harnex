@@ -1,4 +1,4 @@
-defmodule Ear.TestSupport.BlockingAdapter do
+defmodule Harnex.TestSupport.BlockingAdapter do
   defstruct [:owner]
 
   def complete(adapter, _request, _context) do
@@ -10,8 +10,8 @@ defmodule Ear.TestSupport.BlockingAdapter do
   end
 end
 
-defmodule Ear.TestSupport.HangingTool do
-  @behaviour Ear.Tools.Tool
+defmodule Harnex.TestSupport.HangingTool do
+  @behaviour Harnex.Tools.Tool
   def name, do: "hang"
   def description, do: "Hang forever"
   def validate(_), do: :ok

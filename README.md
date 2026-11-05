@@ -1,6 +1,6 @@
-# EAR — Elixir Agent Runtime
+# Harnex — Harnex
 
-EAR (Elixir Agent Runtime) is a small Elixir coding-agent core with a supervised agent loop,
+Harnex (Harnex) is a small Elixir coding-agent core with a supervised agent loop,
 structured run events, local Markdown skills, tool execution, and a basic
 line-oriented terminal UI.
 
@@ -16,7 +16,7 @@ mix test
 Start the Phoenix web interface with:
 
 ```sh
-mix ear.web --workspace /path/to/project
+mix harnex.web --workspace /path/to/project
 ```
 
 Open <http://localhost:9000> to send prompts, view streaming assistant output,
@@ -27,9 +27,9 @@ are held in memory for the lifetime of the server.
 
 The task accepts `--endpoint URL`, `--model NAME`, repeated `--skill-root PATH`,
 `--port PORT` (default: `9000`), and `--verbose`. The workspace defaults to the current
-directory. Debug logs are hidden by default; pass `--verbose` to show them. It uses the same `~/.ear/agent` model configuration and read-only
+directory. Debug logs are hidden by default; pass `--verbose` to show them. It uses the same `~/.harnex/agent` model configuration and read-only
 `file_list` / `file_read` tools as the terminal UI. Set the configured API key
-environment variable before starting. Run `mix ear.web --help` for usage.
+environment variable before starting. Run `mix harnex.web --help` for usage.
 
 Model requests in the web UI default to a 120-second timeout. Set
 `--model-timeout 300000` to allow five minutes. For live streaming this is an
@@ -42,25 +42,25 @@ environment. A scripted adapter can be supplied for deterministic local
 development:
 
 ```elixir
-adapter = Ear.Model.Scripted.new([%{text: "Hello"}])
-Ear.run("Say hello", adapter: adapter)
+adapter = Harnex.Model.Scripted.new([%{text: "Hello"}])
+Harnex.run("Say hello", adapter: adapter)
 ```
 
-Start the basic interactive UI with `Ear.TUI.start/0`. It accepts
+Start the basic interactive UI with `Harnex.TUI.start/0`. It accepts
 prompts and `/help`, `/login`, `/skills`, `/reload-skills`, `/status`, `/history`, `/runs`,
 `/clear-runs`, `/cancel`, `/clear`, `/exit`, and `/quit`. Completed runs remain in the
 session context for subsequent prompts.
-On startup, both TUI modes create missing `~/.ear/agent/models.yaml` and
-`~/.ear/agent/settings.yaml` from environment defaults, then read the selected
+On startup, both TUI modes create missing `~/.harnex/agent/models.yaml` and
+`~/.harnex/agent/settings.yaml` from environment defaults, then read the selected
 provider/model and terminal preferences. Existing files are preserved. Models
 use a Pi-style `providers` registry with `baseUrl`, `api`, `apiEnvKey`, and
 `models`; credentials are resolved from the named environment variable and are
 never written to configuration. See [User Configuration](docs/usage.md#user-configuration)
 for the YAML format and precedence rules.
 The default renderer is quiet and shows assistant output without lifecycle
-diagnostics. Pass `verbose: true` to `Ear.TUI.start/1`, or use `mix ear.tui
+diagnostics. Pass `verbose: true` to `Harnex.TUI.start/1`, or use `mix harnex.tui
 --verbose`, to display run, skill, and tool events.
-Use `mix ear.tui --workspace /path/to/project` to choose the workspace inspected by
+Use `mix harnex.tui --workspace /path/to/project` to choose the workspace inspected by
 the TUI; without it, the current directory is used.
 The line-oriented TUI enables Erlang terminal line history for the default
 terminal input, providing readline-style editing and history. Injected `input`
@@ -68,7 +68,7 @@ functions used by applications and tests are left unchanged.
 The TUI forwards adapter options supplied to `start/1`:
 
 ```elixir
-Ear.TUI.start(adapter: Ear.Model.Scripted.new([%{text: "Hello"}]))
+Harnex.TUI.start(adapter: Harnex.Model.Scripted.new([%{text: "Hello"}]))
 ```
 
 TUI runs automatically expose the read-only `file_list` and `file_read` tools,
@@ -76,7 +76,7 @@ using the current working directory as the workspace. This lets the model
 inspect a project when asked to analyze it. `file_write` and `shell` remain
 explicit opt-in tools for library callers.
 
-For a full-screen terminal session, use `Ear.TUI.start(fullscreen: true)`. The
+For a full-screen terminal session, use `Harnex.TUI.start(fullscreen: true)`. The
 full-screen mode is implemented with the [TermUI](https://github.com/agentjido/term_ui)
 Elm runtime; injected `key_input` options continue to use the deterministic
 legacy backend for tests and embedding.
@@ -91,8 +91,8 @@ a scripted adapter for offline development.
 An OpenAI-compatible adapter is available when `OPENAI_API_KEY` is set:
 
 ```elixir
-adapter = Ear.Model.OpenAI.new(model: "gpt-4o-mini")
-Ear.TUI.start(adapter: adapter)
+adapter = Harnex.Model.OpenAI.new(model: "gpt-4o-mini")
+Harnex.TUI.start(adapter: adapter)
 ```
 
 For compatible gateways, set `EAR_OPENAI_ENDPOINT` and optionally
@@ -102,7 +102,7 @@ Run snapshots are retained in memory. Configure the maximum retained count
 before starting the application:
 
 ```elixir
-config :ear, :max_stored_runs, 2_000
+config :harnex, :max_stored_runs, 2_000
 ```
 
 Shell execution requests OS-level isolation by default. You can pass
@@ -123,12 +123,12 @@ some container hosts disable namespace creation even when `bwrap` is installed.
 The default `/login` command checks the selected provider's `apiEnvKey` without
 printing the secret and preserves its configured endpoint and model.
 Applications can inject a different auth adapter into
-`Ear.TUI.start/1` when credentials are stored elsewhere.
+`Harnex.TUI.start/1` when credentials are stored elsewhere.
 
 The same UI can be launched directly from the shell:
 
 ```sh
-mix ear.tui
+mix harnex.tui
 ```
 
 The command also accepts `--endpoint URL`, `--model NAME`, repeated
@@ -141,16 +141,16 @@ the custom task available.
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `ear` to your list of dependencies in `mix.exs`:
+by adding `harnex` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:ear, "~> 0.1.0"}
+    {:harnex, "~> 0.1.0"}
   ]
 end
 ```
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/ear>.
+be found at <https://hexdocs.pm/harnex>.

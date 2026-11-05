@@ -1,8 +1,8 @@
-# EAR (Elixir Agent Runtime) Implementation Plan
+# Harnex (Harnex) Implementation Plan
 
 ## 1. Objective
 
-Build the first usable version of `ear` in Elixir. The agent should provide the basic behavior expected from a Pi-style coding agent:
+Build the first usable version of `harnex` in Elixir. The agent should provide the basic behavior expected from a Pi-style coding agent:
 
 - accept a user prompt and maintain a conversation;
 - run a model/tool agent loop until the model produces a final answer or the run stops;
@@ -54,34 +54,34 @@ Create a standard Mix project and keep public boundaries apparent in the directo
 
 ```text
 lib/
-  ear.ex                 # Public facade
-  ear/application.ex     # OTP supervision tree
-  ear/agent/
+  harnex.ex                 # Public facade
+  harnex/application.ex     # OTP supervision tree
+  harnex/agent/
     loop.ex                      # Run state machine
     state.ex                     # Immutable run state
     config.ex                    # Validated run options
-  ear/conversation/
+  harnex/conversation/
     message.ex                   # Message structs and validation
     transcript.ex                # Append/query transcript
-  ear/model/
+  harnex/model/
     adapter.ex                   # Behaviour for model providers
     request.ex
     response.ex
-  ear/tools/
+  harnex/tools/
     tool.ex                      # Tool behaviour and metadata
     registry.ex
     executor.ex
-  ear/skills/
+  harnex/skills/
     skill.ex                     # Skill metadata and content
     loader.ex
     registry.ex
     prompt.ex
-  ear/events/
+  harnex/events/
     event.ex                     # Event structs/types
     publisher.ex                  # PubSub or subscriber delivery
-  ear/errors.ex           # Normalized error types
-  ear/runtime.ex          # Run lifecycle and cancellation
-  ear/tui/
+  harnex/errors.ex           # Normalized error types
+  harnex/runtime.ex          # Run lifecycle and cancellation
+  harnex/tui/
     application.ex                # Interactive TUI entry point
     renderer.ex                   # Event-to-terminal rendering
     input.ex                      # Line input and command parsing
@@ -101,11 +101,11 @@ The exact file split can be adjusted while implementing, but the contracts betwe
 The facade should expose a small API before any provider-specific details:
 
 ```elixir
-Ear.start_run(prompt, opts) :: {:ok, run_id} | {:error, reason}
-Ear.run(prompt, opts) :: {:ok, result} | {:error, reason}
-Ear.subscribe(run_id, subscriber) :: :ok | {:error, reason}
-Ear.cancel(run_id) :: :ok | {:error, :not_found}
-Ear.get_run(run_id) :: {:ok, snapshot} | {:error, :not_found}
+Harnex.start_run(prompt, opts) :: {:ok, run_id} | {:error, reason}
+Harnex.run(prompt, opts) :: {:ok, result} | {:error, reason}
+Harnex.subscribe(run_id, subscriber) :: :ok | {:error, reason}
+Harnex.cancel(run_id) :: :ok | {:error, :not_found}
+Harnex.get_run(run_id) :: {:ok, snapshot} | {:error, :not_found}
 ```
 
 `start_run/2` should return promptly and execute under a supervised run process. `run/2` may be a synchronous convenience wrapper that collects terminal events. A run has a unique ID, a monotonic event sequence, a status (`:pending`, `:running`, `:completed`, `:failed`, or `:cancelled`), a transcript, counters, and timestamps.
@@ -143,7 +143,7 @@ Command results should be represented as TUI-local messages or dedicated UI even
 
 ### Session state and shutdown
 
-`Ear.TUI.Session` should track the current run ID, displayed transcript, command registry, authentication status, selected skills, renderer mode, and shutdown flag. It subscribes to run events and maps them to rendering actions. Terminal shutdown is successful only after the run process receives cancellation and emits a terminal event, or after a bounded shutdown timeout with a diagnostic message.
+`Harnex.TUI.Session` should track the current run ID, displayed transcript, command registry, authentication status, selected skills, renderer mode, and shutdown flag. It subscribes to run events and maps them to rendering actions. Terminal shutdown is successful only after the run process receives cancellation and emits a terminal event, or after a bounded shutdown timeout with a diagnostic message.
 
 Authentication state belongs behind an `Auth` behaviour or adapter. Store credentials through an explicitly selected local mechanism and keep the TUI independent of provider-specific login details. `/login` should be testable with a fake adapter and should report success, cancellation, and failure as safe user-facing messages.
 
@@ -372,7 +372,7 @@ criteria below.
 | 5: Integration surface | Functional; acceptance gaps remain | Synchronous collection, CLI, line-oriented/full-screen TUI, required commands, injected input/auth/rendering, conversation history, cancellation, and bounded shutdown waits. | Resolve parser differences from section 6, complete terminal-I/O abstraction and shutdown diagnostics, and expand real-terminal verification. |
 
 The proposed file tree is not a required one-to-one module checklist. Today,
-the run lifecycle, state, and event delivery are implemented in `Ear.Agent.Loop`;
+the run lifecycle, state, and event delivery are implemented in `Harnex.Agent.Loop`;
 skills use loader/prompt modules and maps rather than a separate registry struct.
 These layout choices are acceptable where behavior is equivalent, but missing
 contracts and acceptance tests are still tracked as unfinished work.
@@ -403,11 +403,11 @@ contracts and acceptance tests are still tracked as unfinished work.
   documented fallback; networking requires an explicit option.
 - Local Markdown skills integrated into system instructions, with loaded/error
   events and TUI listing/reloading commands.
-- `mix ear`, streamed terminal output, environment-backed OpenAI login, all six
+- `mix harnex`, streamed terminal output, environment-backed OpenAI login, all six
   initial slash commands, and additional history/status/run-management commands.
   Full-screen mode provides editable input, transcript scrolling, resize polling,
   and Ctrl-C handling; plain-text rendering is also available.
-- Pi-style user configuration in `~/.ear/agent/models.yaml` and `settings.yaml`,
+- Pi-style user configuration in `~/.harnex/agent/models.yaml` and `settings.yaml`,
   checked by both TUI modes before input starts. Missing files are initialized
   from supported environment variables without overwriting existing files.
   Multiple OpenAI-compatible providers/models, default selection, terminal
@@ -424,7 +424,7 @@ contracts and acceptance tests are still tracked as unfinished work.
   event subscription behavior is unchanged.
 - The CLI accepts `--workspace DIR` to select the directory exposed to the TUI's
   file tools and model context; it expands the path and defaults to `File.cwd!()`.
-- Quiet TUI prompt handling now redraws `ear>` after terminal events and ignores
+- Quiet TUI prompt handling now redraws `harnex>` after terminal events and ignores
   blank input, preventing an accidental `:empty_prompt` error when the prompt
   was visible before asynchronous assistant output completed.
 - Default line-oriented TUI input enables and restores Erlang terminal mode and
@@ -438,7 +438,7 @@ contracts and acceptance tests are still tracked as unfinished work.
 - The TUI config layer uses a larger interactive inspection budget by default
   (`maxTurns: 16`, `maxToolCalls: 64`) so project-analysis prompts can inspect
   normal repositories. Explicit values in `settings.yaml` still take precedence;
-  library `Ear.run/2` defaults remain conservative.
+  library `Harnex.run/2` defaults remain conservative.
 
 ### 19.3 Remaining work, in priority order
 

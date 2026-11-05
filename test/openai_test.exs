@@ -1,23 +1,23 @@
-defmodule Ear.OpenAITest do
+defmodule Harnex.OpenAITest do
   use ExUnit.Case, async: true
 
   test "normalizes invalid HTTP timeout configuration" do
-    assert Ear.Model.OpenAI.new(timeout: -1).timeout == 30_000
-    assert Ear.Model.OpenAI.new(timeout: "fast").timeout == 30_000
-    assert Ear.Model.OpenAI.new(timeout: 0).timeout == 0
+    assert Harnex.Model.OpenAI.new(timeout: -1).timeout == 30_000
+    assert Harnex.Model.OpenAI.new(timeout: "fast").timeout == 30_000
+    assert Harnex.Model.OpenAI.new(timeout: 0).timeout == 0
   end
 
   test "normalizes empty endpoint and model configuration" do
-    adapter = Ear.Model.OpenAI.new(endpoint: "", model: " gpt-test ")
+    adapter = Harnex.Model.OpenAI.new(endpoint: "", model: " gpt-test ")
     assert adapter.endpoint == "https://api.openai.com/v1/chat/completions"
     assert adapter.model == "gpt-test"
   end
 
   test "normalizes malformed endpoints" do
-    assert Ear.Model.OpenAI.new(endpoint: "localhost:4000").endpoint ==
+    assert Harnex.Model.OpenAI.new(endpoint: "localhost:4000").endpoint ==
              "https://api.openai.com/v1/chat/completions"
 
-    assert Ear.Model.OpenAI.new(endpoint: "ftp://example.com").endpoint ==
+    assert Harnex.Model.OpenAI.new(endpoint: "ftp://example.com").endpoint ==
              "https://api.openai.com/v1/chat/completions"
   end
 
@@ -48,13 +48,13 @@ defmodule Ear.OpenAITest do
       end)
 
     adapter =
-      Ear.Model.OpenAI.new(
+      Harnex.Model.OpenAI.new(
         api_key: "test",
         endpoint: "http://127.0.0.1:#{port}/v1/chat/completions"
       )
 
     assert {:ok, %{text: "hello"}} =
-             Ear.Model.OpenAI.complete(adapter, %{messages: [], prompt: "hello"}, %{})
+             Harnex.Model.OpenAI.complete(adapter, %{messages: [], prompt: "hello"}, %{})
 
     assert_receive {:request_body,
                     %{
@@ -68,9 +68,9 @@ defmodule Ear.OpenAITest do
   end
 
   test "treats blank API keys as missing" do
-    adapter = Ear.Model.OpenAI.new(api_key: "  ")
+    adapter = Harnex.Model.OpenAI.new(api_key: "  ")
     assert adapter.api_key == nil
-    assert {:error, :missing_api_key} = Ear.Model.OpenAI.complete(adapter, %{}, %{})
+    assert {:error, :missing_api_key} = Harnex.Model.OpenAI.complete(adapter, %{}, %{})
   end
 
   test "tool continuation sends system instructions and JSON string arguments" do
@@ -101,7 +101,7 @@ defmodule Ear.OpenAITest do
         :gen_tcp.close(socket)
       end)
 
-    alias Ear.Conversation.Message
+    alias Harnex.Conversation.Message
 
     request = %{
       system_prompt: "Keep the skill instructions.",
@@ -119,12 +119,12 @@ defmodule Ear.OpenAITest do
     }
 
     adapter =
-      Ear.Model.OpenAI.new(
+      Harnex.Model.OpenAI.new(
         api_key: "test",
         endpoint: "http://127.0.0.1:#{port}/v1/chat/completions"
       )
 
-    assert {:ok, %{text: "done"}} = Ear.Model.OpenAI.complete(adapter, request, %{})
+    assert {:ok, %{text: "done"}} = Harnex.Model.OpenAI.complete(adapter, request, %{})
     assert_receive {:request_body, payload}
     [system, user, assistant, tool] = payload["messages"]
     assert system == %{"role" => "system", "content" => request.system_prompt}
@@ -168,14 +168,14 @@ defmodule Ear.OpenAITest do
       end)
 
     adapter =
-      Ear.Model.OpenAI.new(
+      Harnex.Model.OpenAI.new(
         api_key: "test",
         endpoint: "http://127.0.0.1:#{port}/v1/chat/completions"
       )
 
     request = %{messages: [%{"role" => "user", "content" => "hello"}]}
 
-    assert {:ok, %{text: "ok"}} = Ear.Model.OpenAI.complete(adapter, request, %{})
+    assert {:ok, %{text: "ok"}} = Harnex.Model.OpenAI.complete(adapter, request, %{})
 
     assert_receive {:request_body,
                     %{
@@ -213,13 +213,13 @@ defmodule Ear.OpenAITest do
       end)
 
     adapter =
-      Ear.Model.OpenAI.new(
+      Harnex.Model.OpenAI.new(
         api_key: "test",
         endpoint: "http://127.0.0.1:#{port}/v1/chat/completions"
       )
 
     assert {:ok, %{chunks: chunks}} =
-             Ear.Model.OpenAI.stream(adapter, %{prompt: "hi"}, %{})
+             Harnex.Model.OpenAI.stream(adapter, %{prompt: "hi"}, %{})
 
     assert %{type: :text_delta, text: "hi"} in chunks
     assert %{type: :tool_call_delta, index: 0, id: "c1", name: "echo", arguments: "{}"} in chunks
@@ -261,14 +261,14 @@ defmodule Ear.OpenAITest do
       end)
 
     adapter =
-      Ear.Model.OpenAI.new(
+      Harnex.Model.OpenAI.new(
         api_key: "test",
         endpoint: "http://127.0.0.1:#{port}/v1/chat/completions"
       )
 
     task =
       Task.async(fn ->
-        Ear.Model.OpenAI.stream(adapter, %{prompt: "hi"},
+        Harnex.Model.OpenAI.stream(adapter, %{prompt: "hi"},
           stream_owner: owner,
           stream_token: token
         )
@@ -293,7 +293,7 @@ defmodule Ear.OpenAITest do
       end)
 
     assert {:ok, %{chunks: chunks}} =
-             Ear.Model.OpenAI.stream(adapter, %{prompt: "hi"},
+             Harnex.Model.OpenAI.stream(adapter, %{prompt: "hi"},
                stream_owner: self(),
                stream_token: make_ref()
              )
@@ -315,7 +315,7 @@ defmodule Ear.OpenAITest do
 
     task =
       Task.async(fn ->
-        Ear.Model.OpenAI.stream(adapter, %{prompt: "hi"},
+        Harnex.Model.OpenAI.stream(adapter, %{prompt: "hi"},
           stream_owner: owner,
           stream_token: token
         )
@@ -340,7 +340,7 @@ defmodule Ear.OpenAITest do
 
     task =
       Task.async(fn ->
-        Ear.Model.OpenAI.stream(adapter, %{prompt: "hi"},
+        Harnex.Model.OpenAI.stream(adapter, %{prompt: "hi"},
           stream_owner: owner,
           stream_token: make_ref()
         )
@@ -364,7 +364,7 @@ defmodule Ear.OpenAITest do
 
     task =
       Task.async(fn ->
-        Ear.Model.OpenAI.stream(adapter, %{prompt: "hi"},
+        Harnex.Model.OpenAI.stream(adapter, %{prompt: "hi"},
           stream_owner: owner,
           stream_token: token
         )
@@ -402,7 +402,7 @@ defmodule Ear.OpenAITest do
       end)
 
     adapter =
-      Ear.Model.OpenAI.new(
+      Harnex.Model.OpenAI.new(
         api_key: "test",
         endpoint: "http://127.0.0.1:#{port}/v1/chat/completions",
         timeout: timeout
@@ -435,7 +435,7 @@ defmodule Ear.OpenAITest do
   end
 end
 
-defmodule Ear.OpenAITest.CompleteOnlyAdapter do
-  @behaviour Ear.Model.Adapter
+defmodule Harnex.OpenAITest.CompleteOnlyAdapter do
+  @behaviour Harnex.Model.Adapter
   def complete(_adapter, _request, _context), do: {:ok, %{text: "ok"}}
 end

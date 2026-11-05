@@ -1,17 +1,17 @@
-defmodule Ear.ApprovalTest do
+defmodule Harnex.ApprovalTest do
   use ExUnit.Case, async: false
 
   test "a blocked approval callback is treated as a denial" do
     adapter =
-      Ear.Model.Scripted.new([
+      Harnex.Model.Scripted.new([
         %{tool_calls: [%{id: "approval", name: "echo", args: "x"}]},
         %{text: "continued"}
       ])
 
-    tools = Ear.Tools.Registry.new([Ear.Tools.Echo])
+    tools = Harnex.Tools.Registry.new([Harnex.Tools.Echo])
 
     assert {:ok, %{text: "continued"}, events} =
-             Ear.run_with_events("approve",
+             Harnex.run_with_events("approve",
                adapter: adapter,
                tools: tools,
                approve_tool: fn _name, _args -> Process.sleep(500) end,

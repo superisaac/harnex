@@ -1,4 +1,4 @@
-# EAR (Elixir Agent Runtime) Usage
+# Harnex (Harnex) Usage
 
 ## Partial Results and Model Failures
 
@@ -31,13 +31,13 @@ Start the terminal UI with:
 
 ```sh
 mix compile
-mix ear.tui
+mix harnex.tui
 ```
 
 ### User Configuration
 
-Both TUI modes check `~/.ear/agent/models.yaml` and
-`~/.ear/agent/settings.yaml` before starting terminal input. Missing directories
+Both TUI modes check `~/.harnex/agent/models.yaml` and
+`~/.harnex/agent/settings.yaml` before starting terminal input. Missing directories
 and files are created; existing files are never overwritten. YAML comments and
 normal lists are supported. Invalid configuration stops startup with a file name
 and safe error reason, without printing file contents.
@@ -111,9 +111,9 @@ directory and is passed to file tools and adapter context.
 
 The default TUI renderer is quiet: assistant text and terminal errors remain
 visible, while run, skill, and tool lifecycle events are suppressed. Pass
-`verbose: true` to `Ear.TUI.start/1`, or use `mix ear.tui --verbose`, to display
+`verbose: true` to `Harnex.TUI.start/1`, or use `mix harnex.tui --verbose`, to display
 those diagnostics. Event subscribers still receive every structured event in
-both modes. After a terminal event, quiet mode redraws the `ear>` prompt. A
+both modes. After a terminal event, quiet mode redraws the `harnex>` prompt. A
 blank line entered at the prompt is ignored rather than submitted as a model
 request.
 
@@ -142,7 +142,7 @@ completes. `/login openai` validates `OPENAI_API_KEY` and configures the
 OpenAI adapter for subsequent prompts. Use `/login` for the configured default
 provider. Completed runs remain the session
 context, so the next prompt includes earlier user, assistant, and tool
-messages. Set `ansi: false` in `Ear.TUI.start/1` when output is being
+messages. Set `ansi: false` in `Harnex.TUI.start/1` when output is being
 redirected or the terminal does not support ANSI control sequences.
 The default renderer also reports run start, skill loading, and tool lifecycle
 events as compact status lines.
@@ -173,7 +173,7 @@ the next prompt.
 On `/exit` or EOF, the TUI requests cancellation and waits briefly for the
 active run to reach a terminal state before shutting down its event renderer.
 
-Use `Ear.TUI.start(fullscreen: true)` for the full-screen terminal. This mode
+Use `Harnex.TUI.start(fullscreen: true)` for the full-screen terminal. This mode
 uses the TermUI Elm runtime and renders complete `TermUI.Frame` values.
 mode. It provides an alternate screen buffer, editable input with arrow keys,
 Backspace, Delete, and Enter, plus Up/Down and PageUp/PageDown transcript
@@ -190,8 +190,8 @@ errors to the TUI.
 Use a scripted adapter for deterministic local development:
 
 ```elixir
-adapter = Ear.Model.Scripted.new([%{text: "Hello"}])
-Ear.run("Say hello", adapter: adapter)
+adapter = Harnex.Model.Scripted.new([%{text: "Hello"}])
+Harnex.run("Say hello", adapter: adapter)
 ```
 
 When no adapter is supplied, the run API uses the OpenAI-compatible adapter
@@ -202,11 +202,11 @@ and reads `OPENAI_API_KEY`, `EAR_OPENAI_ENDPOINT`, and
 Use the OpenAI-compatible adapter for a live provider:
 
 ```elixir
-adapter = Ear.Model.OpenAI.new()
-Ear.run("Explain this project", adapter: adapter, stream: true)
+adapter = Harnex.Model.OpenAI.new()
+Harnex.run("Explain this project", adapter: adapter, stream: true)
 ```
 
-Custom struct adapters implement `Ear.Model.Adapter.complete/3`;
+Custom struct adapters implement `Harnex.Model.Adapter.complete/3`;
 module adapters may implement `complete/3` or the legacy `complete/2` form.
 The `stream/3` callback is optional: when `stream: true` is requested for an
 adapter without that callback, the loop calls `complete/3` instead. This
@@ -218,7 +218,7 @@ Use `run_with_events/2` when the caller needs the complete ordered event
 stream:
 
 ```elixir
-{:ok, result, events} = Ear.run_with_events("Inspect the project", adapter: adapter)
+{:ok, result, events} = Harnex.run_with_events("Inspect the project", adapter: adapter)
 ```
 
 Successful assistant text emits one or more `message_delta` events followed
@@ -234,12 +234,12 @@ Live streaming uses the OpenAI adapter's `timeout` as an inactivity limit,
 reset whenever HTTP stream data arrives, instead of a total request deadline.
 The stream finishes at `[DONE]`, even if the provider keeps the connection open.
 Timeout and cancellation close the pending HTTP request. The web UI defaults
-to 120,000 milliseconds; pass `mix ear.web --model-timeout 300000` to increase
+to 120,000 milliseconds; pass `mix harnex.web --model-timeout 300000` to increase
 this to five minutes. Complete and buffered model requests use a total HTTP
 timeout. This model timeout is separate from the synchronous caller timeout
 described below.
 
-`mix ear.web` suppresses debug logs by default. Pass `--verbose` to show them.
+`mix harnex.web` suppresses debug logs by default. Pass `--verbose` to show them.
 
 Runtime failures return `{:error, reason, events}` from `run_with_events/2`.
 Validation failures return `{:error, reason}` before a run starts. `run/2`
@@ -248,9 +248,9 @@ to bound the synchronous wait; it covers the whole collection period and cancels
 the active run when it expires. Events belonging to other runs remain in the
 caller's mailbox.
 
-`Ear.list_runs/0` returns all stored snapshots. Use
-`Ear.list_runs(limit)` to cap the number of returned records.
-Active runs support `Ear.subscribe/2` and `Ear.unsubscribe/2`
+`Harnex.list_runs/0` returns all stored snapshots. Use
+`Harnex.list_runs(limit)` to cap the number of returned records.
+Active runs support `Harnex.subscribe/2` and `Harnex.unsubscribe/2`
 for managing event consumers. Subscriber processes are monitored and removed
 automatically when they exit.
 Run snapshots are kept in a supervised in-memory store with a default limit of
@@ -260,9 +260,9 @@ to change the retention limit.
 Runs accept safety and resource limits:
 
 ```elixir
-Ear.run("Use the echo tool",
+Harnex.run("Use the echo tool",
   adapter: adapter,
-  tools: Ear.Tools.Registry.new([Ear.Tools.Echo]),
+  tools: Harnex.Tools.Registry.new([Harnex.Tools.Echo]),
   allowed_tools: ["echo"],
   max_turns: 8,
   max_tool_calls: 16,
@@ -285,7 +285,7 @@ response execute sequentially, preserving transcript order.
 Skill roots can be supplied to inject local `SKILL.md` instructions:
 
 ```elixir
-Ear.TUI.start(skill_roots: ["./priv/skills"])
+Harnex.TUI.start(skill_roots: ["./priv/skills"])
 ```
 
 Built-in tools are opt-in for library calls and include `file_read`, `file_write`,
@@ -302,9 +302,9 @@ should also use `allowed_tools` and an approval callback:
 bytes to detect oversized content. The default limit is 256,000 bytes.
 
 ```elixir
-tools = Ear.Tools.Registry.new([Ear.Tools.FileRead, Ear.Tools.Shell])
+tools = Harnex.Tools.Registry.new([Harnex.Tools.FileRead, Harnex.Tools.Shell])
 
-Ear.run("Inspect the project",
+Harnex.run("Inspect the project",
   adapter: adapter,
   tools: tools,
   workspace: "/path/to/project",

@@ -1,4 +1,4 @@
-defmodule Ear.AuthTest do
+defmodule Harnex.AuthTest do
   use ExUnit.Case, async: false
 
   test "blank environment credentials are rejected" do
@@ -11,7 +11,7 @@ defmodule Ear.AuthTest do
     end)
 
     assert {:error, {:missing_credential, ^name}} =
-             Ear.Auth.Env.login("ear_auth_blank_test", %{})
+             Harnex.Auth.Env.login("ear_auth_blank_test", %{})
   end
 
   test "trims provider names before resolving credentials" do
@@ -24,18 +24,18 @@ defmodule Ear.AuthTest do
     end)
 
     assert {:ok, %{provider: "ear_auth_trim_test"}} =
-             Ear.Auth.Env.login(" ear_auth_trim_test ", %{})
+             Harnex.Auth.Env.login(" ear_auth_trim_test ", %{})
   end
 
   test "rejects non-string providers" do
-    assert {:error, :invalid_provider} = Ear.Auth.Env.login(nil, %{})
-    assert {:error, :invalid_provider} = Ear.Auth.Noop.login(nil, %{})
-    assert {:error, :invalid_provider} = Ear.Auth.Env.login("   ", %{})
-    assert {:error, :invalid_provider} = Ear.Auth.Noop.login("   ", %{})
+    assert {:error, :invalid_provider} = Harnex.Auth.Env.login(nil, %{})
+    assert {:error, :invalid_provider} = Harnex.Auth.Noop.login(nil, %{})
+    assert {:error, :invalid_provider} = Harnex.Auth.Env.login("   ", %{})
+    assert {:error, :invalid_provider} = Harnex.Auth.Noop.login("   ", %{})
   end
 
   test "noop authentication trims provider names" do
     assert {:ok, %{provider: "openai", authenticated: true}} =
-             Ear.Auth.Noop.login(" openai ", %{})
+             Harnex.Auth.Noop.login(" openai ", %{})
   end
 end
