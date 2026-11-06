@@ -127,6 +127,10 @@ defmodule Harnex.TUI.Fullscreen do
 
         {session, display_result(state, result)}
 
+      {state, {:copy, text}} ->
+        copy_to_clipboard(text)
+        {session, %{state | status: "Copied"}}
+
       {state, :cancel} ->
         command =
           if state.status in ["Running"] or String.starts_with?(state.status, "Tool:"),
@@ -271,6 +275,7 @@ defmodule Harnex.TUI.Fullscreen do
   def handle_key(%__MODULE__{} = state, :enter), do: submit(state)
   def handle_key(%__MODULE__{} = state, :ctrl_c), do: {state, :cancel}
   def handle_key(%__MODULE__{} = state, :ctrl_l), do: {state, :redraw}
+  def handle_key(%__MODULE__{} = state, :ctrl_o), do: {state, {:copy, copy_text(state)}}
 
   def handle_key(%__MODULE__{} = state, :page_up),
     do: {%{state | scroll: state.scroll + page(state)}, :none}
@@ -384,12 +389,29 @@ defmodule Harnex.TUI.Fullscreen do
   def parse_key(<<27, "[6~">>), do: :page_down
   def parse_key(<<3>>), do: :ctrl_c
   def parse_key(<<12>>), do: :ctrl_l
+  def parse_key(<<15>>), do: :ctrl_o
   def parse_key(<<13>>), do: :enter
   def parse_key(<<10>>), do: :enter
   def parse_key(<<27, "[3~">>), do: :delete
   def parse_key(<<127>>), do: :backspace
   def parse_key(<<27>>), do: :escape
   def parse_key(key) when is_binary(key), do: key
+
+  @doc "Returns the current transcript as copyable plain text."
+  def copy_text(%__MODULE__{lines: lines}), do: Enum.join(lines, "\n")
+
+  defp copy_to_clipboard(text) do
+    command =
+      cond do
+        System.find_executable("pbcopy") -> "pbcopy"
+        System.find_executable("wl-copy") -> "wl-copy"
+        System.find_executable("xclip") -> "xclip"
+        true -> nil
+      end
+
+    if command, do: System.cmd(command, [], input: text, stderr_to_stdout: true)
+    :ok
+  end
 
   defp submit(%{input: ""} = state), do: {state, :none}
   defp submit(state), do: {%{state | input: "", cursor: 0}, {:submit, state.input}}

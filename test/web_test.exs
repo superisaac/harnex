@@ -95,7 +95,8 @@ defmodule Harnex.WebTest do
     stop_supervised(Harnex.Web)
 
     start_supervised!(
-      {Harnex.Web, config: false, port: 0, adapter: %Harnex.TestSupport.BlockingAdapter{owner: self()}}
+      {Harnex.Web,
+       config: false, port: 0, adapter: %Harnex.TestSupport.BlockingAdapter{owner: self()}}
     )
 
     assert :ok = Harnex.Web.Session.prompt("Wait")
@@ -121,7 +122,11 @@ defmodule Harnex.WebTest do
     assert Enum.any?(state.events, &(&1.type == "message_completed"))
 
     stop_supervised(Harnex.Web)
-    start_supervised!({Harnex.Web, config: false, port: 0, adapter: Harnex.Model.Scripted.new([])})
+
+    start_supervised!(
+      {Harnex.Web, config: false, port: 0, adapter: Harnex.Model.Scripted.new([])}
+    )
+
     assert :ok = Harnex.Web.Session.prompt("Fail")
     assert await_status(:failed).error == ":no_scripted_response"
   end

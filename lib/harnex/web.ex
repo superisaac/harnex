@@ -30,7 +30,10 @@ defmodule Harnex.Web do
       url: [host: "localhost"],
       server: true,
       secret_key_base: Base.encode64(:crypto.strong_rand_bytes(64)),
-      render_errors: [formats: [html: Harnex.Web.ErrorHTML, json: Harnex.Web.ErrorJSON], layout: false]
+      render_errors: [
+        formats: [html: Harnex.Web.ErrorHTML, json: Harnex.Web.ErrorJSON],
+        layout: false
+      ]
     )
 
     Supervisor.init([{Harnex.Web.Session, opts}, Harnex.Web.Endpoint], strategy: :one_for_one)

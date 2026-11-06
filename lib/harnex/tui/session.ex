@@ -1,6 +1,6 @@
 defmodule Harnex.TUI.Session do
   @moduledoc "Small line-oriented interactive session over the agent API."
-  alias Harnex.TUI.{Command, Renderer}
+  alias Harnex.TUI.{Command, Renderer, RuntimeAdapter}
 
   defstruct run_id: nil,
             skills: [],
@@ -28,7 +28,7 @@ defmodule Harnex.TUI.Session do
           |> with_previous_messages(session.run_id)
           |> Keyword.put(:subscriber, subscriber)
 
-        case Harnex.start_run(prompt, run_opts) do
+        case RuntimeAdapter.start(prompt, run_opts, subscriber) do
           {:ok, run_id, _pid} -> {%{session | run_id: run_id}, :ok}
           error -> {session, error}
         end

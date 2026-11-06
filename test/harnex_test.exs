@@ -93,7 +93,8 @@ defmodule EarTest do
 
     assert_receive {:harnex, %{type: :tool_call_started, tool_call_id: "call-1"}}
 
-    assert_receive {:harnex, %{type: :tool_call_completed, payload: %{result: {:ok, "from tool"}}}}
+    assert_receive {:harnex,
+                    %{type: :tool_call_completed, payload: %{result: {:ok, "from tool"}}}}
 
     assert_receive {:harnex, %{type: :run_completed, payload: %{text: "done"}}}
   end
@@ -225,7 +226,8 @@ defmodule EarTest do
         subscriber: self()
       )
 
-    assert_receive {:harnex, %{type: :tool_call_failed, payload: %{result: {:error, :tool_denied}}}}
+    assert_receive {:harnex,
+                    %{type: :tool_call_failed, payload: %{result: {:error, :tool_denied}}}}
   end
 
   test "tui session exposes loaded skills without their contents" do
@@ -594,7 +596,8 @@ defmodule EarTest do
         subscriber: self()
       )
 
-    assert_receive {:harnex, %{type: :tool_call_failed, payload: %{result: {:error, :tool_denied}}}}
+    assert_receive {:harnex,
+                    %{type: :tool_call_failed, payload: %{result: {:error, :tool_denied}}}}
   end
 
   test "file_read is bounded to the workspace" do
