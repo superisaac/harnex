@@ -21,11 +21,27 @@ defmodule Harnex.TUI do
           )
         )
 
-      if Keyword.get(opts, :fullscreen, false) do
-        Harnex.TUI.TermUI.start(Keyword.put(opts, :config, false))
-      else
-        start_line_oriented(opts)
+      case Keyword.get(opts, :resume) do
+        nil ->
+          start_configured(opts)
+
+        run_id ->
+          path = Harnex.TUI.SessionStore.path(workspace(opts), run_id)
+
+          if Harnex.TUI.SessionStore.exists?(path) do
+            start_configured(opts)
+          else
+            {:error, {:resume_not_found, run_id}}
+          end
       end
+    end
+  end
+
+  defp start_configured(opts) do
+    if Keyword.get(opts, :fullscreen, false) do
+      Harnex.TUI.TermUI.start(Keyword.put(opts, :config, false))
+    else
+      start_line_oriented(opts)
     end
   end
 
@@ -51,7 +67,9 @@ defmodule Harnex.TUI do
         |> Keyword.put(:subscriber, event_pid)
         |> Keyword.put(:run_opts, opts)
 
-      loop(Session.new(session_opts), input, ansi, readline_state)
+      {session_opts, history} = restore_line_session(opts, session_opts)
+      if history != [], do: display({:history, history}, ansi)
+      loop(Session.new(session_opts), input, ansi, readline_state, Keyword.get(opts, :resume))
     after
       send(event_pid, :stop)
 
@@ -64,6 +82,29 @@ defmodule Harnex.TUI do
       end
 
       restore_readline(io_options)
+    end
+  end
+
+  defp restore_line_session(opts, session_opts) do
+    case Keyword.get(opts, :resume) do
+      run_id when is_binary(run_id) ->
+        path = Harnex.TUI.SessionStore.path(workspace(opts), run_id)
+        initial = Harnex.TUI.State.new(mode: :scrollback, workspace: workspace(opts))
+
+        case Harnex.TUI.SessionStore.resume(path, initial) do
+          {:ok, state, _metadata} ->
+            messages = Harnex.TUI.SessionStore.messages(state)
+            run_opts = Keyword.put(Keyword.get(session_opts, :run_opts, []), :messages, messages)
+
+            {session_opts |> Keyword.put(:run_id, run_id) |> Keyword.put(:run_opts, run_opts),
+             messages}
+
+          _ ->
+            {session_opts, []}
+        end
+
+      _ ->
+        {session_opts, []}
     end
   end
 
@@ -97,9 +138,9 @@ defmodule Harnex.TUI do
     _ -> :ok
   end
 
-  defp loop(%Session{running: false}, _input, _ansi, _readline), do: :ok
+  defp loop(%Session{running: false}, _input, _ansi, _readline, _resume_id), do: :ok
 
-  defp loop(session, input, ansi, readline) do
+  defp loop(session, input, ansi, readline, resume_id) do
     {result, readline} =
       if is_struct(readline, Harnex.TUI.Readline) do
         Harnex.TUI.Readline.gets(readline)
@@ -120,10 +161,11 @@ defmodule Harnex.TUI do
 
       line ->
         {session, result} = Session.handle(session, Command.parse(line))
+        if result == :exit, do: print_resume_hint(resume_id || session.run_id)
         display(result, ansi)
 
         if session.running,
-          do: loop(session, input, ansi, readline),
+          do: loop(session, input, ansi, readline, resume_id),
           else: await_shutdown(session.run_id)
     end
   end
@@ -161,6 +203,11 @@ defmodule Harnex.TUI do
   defp display(:clear, false), do: IO.puts("--- screen cleared ---")
 
   defp display(_, _ansi), do: :ok
+
+  defp print_resume_hint(run_id) when is_binary(run_id),
+    do: IO.puts("to resume run mix harnex.tui --resume #{run_id}")
+
+  defp print_resume_hint(_), do: :ok
 
   defp event_loop(owner, renderer) do
     owner_ref = Process.monitor(owner)

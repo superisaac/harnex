@@ -7,6 +7,7 @@ defmodule Mix.Tasks.Harnex.Tui do
 
       mix harnex.tui [--workspace DIR] [--endpoint URL] [--model NAME]
                   [--skill-root PATH] [--no-ansi] [--verbose]
+                  [--resume SESSION_ID]
   """
 
   @impl true
@@ -22,7 +23,8 @@ defmodule Mix.Tasks.Harnex.Tui do
             model: :string,
             skill_root: :keep,
             no_ansi: :boolean,
-            verbose: :boolean
+            verbose: :boolean,
+            resume: :string
           ]
         )
 

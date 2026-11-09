@@ -10,6 +10,12 @@ defmodule Harnex.TUI.SessionStore do
 
   @version 1
 
+  @spec path(Path.t(), String.t()) :: Path.t()
+  def path(workspace, run_id) when is_binary(workspace) and is_binary(run_id) do
+    safe_id = String.replace(run_id, ~r/[^a-zA-Z0-9_.-]/, "_")
+    Path.join([workspace, ".harnex", "sessions", safe_id <> ".log"])
+  end
+
   @spec append(Path.t(), Event.t()) :: :ok | {:error, term()}
   def append(path, %Event{} = event) do
     record = :erlang.term_to_binary({@version, event})
@@ -44,6 +50,23 @@ defmodule Harnex.TUI.SessionStore do
 
   @spec exists?(Path.t()) :: boolean()
   def exists?(path), do: File.exists?(path)
+
+  @doc "Builds conversation messages from a restored TUI projection."
+  def messages(%State{blocks: blocks}) do
+    Enum.reduce(blocks, [], fn
+      %{kind: :user_message, content: content}, acc ->
+        acc ++ [Harnex.Conversation.Message.new(:user, IO.iodata_to_binary(content))]
+
+      %{kind: :assistant_message_completed, content: content}, acc ->
+        acc ++ [Harnex.Conversation.Message.new(:assistant, IO.iodata_to_binary(content))]
+
+      %{kind: :assistant_message, content: content}, acc ->
+        acc ++ [Harnex.Conversation.Message.new(:assistant, IO.iodata_to_binary(content))]
+
+      _, acc ->
+        acc
+    end)
+  end
 
   @doc "Reconstructs TUI state from the production RunStore snapshot."
   @spec resume_run(String.t(), State.t()) :: {:ok, State.t()} | {:error, term()}
@@ -94,13 +117,24 @@ defmodule Harnex.TUI.SessionStore do
 
   defp decode_record(record) do
     try do
-      case :erlang.binary_to_term(record, [:safe]) do
-        {@version, %Event{} = event} -> {:ok, event}
-        {version, _event} -> {:error, {:unsupported_version, version}}
-        _ -> {:error, :invalid_shape}
-      end
+      decode_term(:erlang.binary_to_term(record, [:safe]))
     rescue
-      _ -> {:error, :invalid_term}
+      ArgumentError ->
+        try do
+          decode_term(:erlang.binary_to_term(record))
+        rescue
+          _ -> {:error, :invalid_term}
+        end
+
+      _ ->
+        {:error, :invalid_term}
     end
   end
+
+  defp decode_term({@version, %Event{} = event}) do
+    if Event.valid?(event), do: {:ok, event}, else: {:error, :invalid_event}
+  end
+
+  defp decode_term({version, _event}), do: {:error, {:unsupported_version, version}}
+  defp decode_term(_), do: {:error, :invalid_shape}
 end

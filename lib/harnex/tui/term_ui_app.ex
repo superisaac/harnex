@@ -12,6 +12,7 @@ defmodule Harnex.TUI.TermUIApp do
             status: "Ready",
             tui_state: nil,
             approval: nil,
+            exit_reporter: nil,
             verbose: false,
             transcript_limit: 200
 
@@ -19,15 +20,44 @@ defmodule Harnex.TUI.TermUIApp do
     dimensions = Keyword.get(opts, :dimensions, {80, 24})
     app_opts = Keyword.get(opts, :ear_runtime_opts, [])
     session_opts = Keyword.put(Keyword.get(app_opts, :session_opts, []), :subscriber, self())
+    workspace = Keyword.get(app_opts, :workspace, File.cwd!())
+    {tui_state, session_opts} = restore_session(app_opts, workspace, session_opts)
 
     %__MODULE__{
       session: Session.new(session_opts),
       input: new_input(),
-      tui_state: State.new(mode: :fullscreen, workspace: File.cwd!()),
+      tui_state: tui_state,
+      exit_reporter: Keyword.get(app_opts, :exit_reporter),
       dimensions: dimensions,
       verbose: Keyword.get(app_opts, :verbose, false),
       transcript_limit: Keyword.get(app_opts, :transcript_limit, 200)
     }
+  end
+
+  defp restore_session(app_opts, workspace, session_opts) do
+    case Keyword.get(app_opts, :resume) do
+      nil ->
+        {State.new(mode: :fullscreen, workspace: workspace), session_opts}
+
+      run_id ->
+        path = Harnex.TUI.SessionStore.path(workspace, run_id)
+        initial = State.new(mode: :fullscreen, workspace: workspace)
+
+        case Harnex.TUI.SessionStore.resume(path, initial) do
+          {:ok, state, _metadata} ->
+            messages = Harnex.TUI.SessionStore.messages(state)
+            state = %{state | session_id: run_id}
+            run_opts = Keyword.put(Keyword.get(session_opts, :run_opts, []), :messages, messages)
+
+            session_opts =
+              session_opts |> Keyword.put(:run_id, run_id) |> Keyword.put(:run_opts, run_opts)
+
+            {state, session_opts}
+
+          _ ->
+            {initial, session_opts}
+        end
+    end
   end
 
   def event_to_msg(%TermUI.Event.Key{key: key, modifiers: modifiers}, _),
@@ -38,6 +68,9 @@ defmodule Harnex.TUI.TermUIApp do
 
   def event_to_msg(%TermUI.Event.Resize{width: width, height: height}, _),
     do: {:msg, {:resize, width, height}}
+
+  def event_to_msg(%TermUI.Event.Mouse{action: :scroll_up}, _), do: {:msg, {:scroll, :up}}
+  def event_to_msg(%TermUI.Event.Mouse{action: :scroll_down}, _), do: {:msg, {:scroll, :down}}
 
   def event_to_msg(_, _), do: :ignore
 
@@ -82,6 +115,9 @@ defmodule Harnex.TUI.TermUIApp do
   def update({:key, :page_down, _modifiers}, state),
     do: {%{state | scroll: max(state.scroll - page_size(state), 0)}, []}
 
+  def update({:scroll, :up}, state), do: {%{state | scroll: state.scroll + 3}, []}
+  def update({:scroll, :down}, state), do: {%{state | scroll: max(state.scroll - 3, 0)}, []}
+
   def update({:key, key, modifiers}, state)
       when key in ["c", :c] and (modifiers == [:ctrl] or modifiers == [:control]),
       do: cancel_or_exit(state)
@@ -118,6 +154,8 @@ defmodule Harnex.TUI.TermUIApp do
   defp decision_to_runtime(:cancel), do: :deny
 
   defp apply_event(state, event) do
+    persist_runtime_event(event, state)
+
     projected =
       case event do
         %Harnex.Events.Event{} = runtime_event ->
@@ -134,7 +172,12 @@ defmodule Harnex.TUI.TermUIApp do
   end
 
   defp sync_projection(state, %State{status: status, blocks: blocks}) do
-    status = status |> Atom.to_string() |> String.capitalize()
+    status =
+      if is_binary(state.status) and
+           (String.starts_with?(state.status, "Tool:") or state.status == "Tool completed"),
+         do: state.status,
+         else: status |> Atom.to_string() |> String.capitalize()
+
     projected_lines = Enum.map(blocks, &IO.iodata_to_binary(&1.content))
     %{state | status: status, lines: Enum.take(projected_lines, -state.transcript_limit)}
   end
@@ -144,6 +187,7 @@ defmodule Harnex.TUI.TermUIApp do
   end
 
   defp cancel_or_exit(state) do
+    print_resume_hint(state.session.run_id)
     {session, _result} = Session.handle(state.session, {:command, "cancel", ""})
     {%{state | session: session, status: "Cancelled"}, []}
   end
@@ -169,6 +213,14 @@ defmodule Harnex.TUI.TermUIApp do
         input: new_input(),
         tui_state: State.submit(state.tui_state, prompt)
     }
+
+    if match?({:prompt, _}, Command.parse(prompt)),
+      do: persist_user_message(session, prompt, state.tui_state)
+
+    state =
+      if not session.running,
+        do: append_resume_hint(state, state.tui_state.session_id || session.run_id),
+        else: state
 
     if session.running,
       do:
@@ -318,6 +370,17 @@ defmodule Harnex.TUI.TermUIApp do
   defp apply_event_legacy(state, %{type: :message_delta, payload: %{text: text}}),
     do: append_stream(state, text)
 
+  defp apply_event_legacy(state, %Harnex.Events.Event{type: :tool_call_started, payload: payload}) do
+    name = Map.get(payload, :name, "tool")
+    %{state | status: "Tool: #{name}"}
+  end
+
+  defp apply_event_legacy(state, %Harnex.Events.Event{type: :tool_call_completed}),
+    do: %{state | status: "Tool completed"}
+
+  defp apply_event_legacy(state, %Harnex.Events.Event{type: :message_delta}),
+    do: %{state | status: "Working"}
+
   defp apply_event_legacy(state, %{type: :run_started}), do: %{state | status: "Running"}
   defp apply_event_legacy(state, %{type: :run_completed}), do: %{state | status: "Ready"}
   defp apply_event_legacy(state, %{type: :run_cancelled}), do: %{state | status: "Cancelled"}
@@ -345,4 +408,50 @@ defmodule Harnex.TUI.TermUIApp do
   end
 
   defp new_input, do: TermUI.Widget.TextInput.init(placeholder: "Type a prompt or /command")
+
+  defp persist_runtime_event(%Harnex.Events.Event{run_id: run_id} = event, state) do
+    session_id = state.tui_state.session_id || run_id
+    path = Harnex.TUI.SessionStore.path(state.tui_state.workspace, session_id)
+    _ = Harnex.TUI.SessionStore.append(path, EventBridge.from_runtime(event))
+  end
+
+  defp persist_runtime_event(_, _), do: :ok
+
+  defp persist_user_message(%{run_id: run_id}, prompt, tui_state) when is_binary(run_id) do
+    session_id = tui_state.session_id || run_id
+
+    event =
+      Harnex.TUI.Event.new(
+        :user_message,
+        Integer.to_string(System.unique_integer([:positive])),
+        %{content: prompt}
+      )
+
+    _ =
+      Harnex.TUI.SessionStore.append(
+        Harnex.TUI.SessionStore.path(tui_state.workspace, session_id),
+        event
+      )
+  end
+
+  defp persist_user_message(_, _, _), do: :ok
+
+  defp print_resume_hint(run_id) when is_binary(run_id),
+    do: IO.puts("to resume run mix harnex.tui --resume #{run_id}")
+
+  defp print_resume_hint(_), do: :ok
+
+  defp append_resume_hint(state, run_id) when is_binary(run_id) do
+    report_resume_hint(state.exit_reporter, run_id)
+    hint = "to resume run mix harnex.tui --resume #{run_id}"
+    %{append(state, hint) | tui_state: State.append(state.tui_state, :runtime_event, hint)}
+  end
+
+  defp append_resume_hint(state, _), do: state
+
+  defp report_resume_hint({pid, ref}, run_id) when is_pid(pid) and is_reference(ref) do
+    send(pid, {:harnex_tui_resume_hint, ref, run_id})
+  end
+
+  defp report_resume_hint(_reporter, run_id), do: print_resume_hint(run_id)
 end

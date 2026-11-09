@@ -39,7 +39,24 @@ defmodule Harnex.TUI.State do
 
   @spec append(t(), atom(), iodata(), map()) :: t()
   def append(state, kind, content, metadata \\ %{}) do
-    %{state | blocks: state.blocks ++ [%{kind: kind, content: content, metadata: metadata}]}
+    %{
+      state
+      | blocks:
+          state.blocks ++ [%{kind: kind, content: normalize_content(content), metadata: metadata}]
+    }
+  end
+
+  # Runtime event payloads are generally strings, but failure reasons and
+  # adapter diagnostics may be tuples, maps, or other terms. Keep the block
+  # contract iodata so the renderer can safely flatten every block.
+  defp normalize_content(content) when is_binary(content), do: content
+
+  defp normalize_content(content) do
+    try do
+      IO.iodata_to_binary(content)
+    rescue
+      ArgumentError -> inspect(content)
+    end
   end
 
   @spec status(t(), status()) :: t()

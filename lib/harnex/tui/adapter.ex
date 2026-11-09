@@ -10,7 +10,7 @@ defmodule Harnex.TUI.Adapter do
     %{
       state
       | workspace: Map.get(data, :workspace, state.workspace),
-        session_id: Map.get(data, :session_id, state.session_id),
+        session_id: state.session_id || Map.get(data, :session_id),
         model: Map.get(data, :model, state.model),
         status: :idle
     }
@@ -38,17 +38,29 @@ defmodule Harnex.TUI.Adapter do
     end
   end
 
-  def apply(state, %Event{kind: :assistant_message_completed, data: %{content: content}}),
-    do: State.append(state, :assistant_message_completed, content)
+  def apply(state, %Event{kind: :assistant_message_completed, data: %{content: content}}) do
+    case List.last(state.blocks) do
+      %{kind: :assistant_message} ->
+        blocks =
+          List.replace_at(state.blocks, -1, %{
+            kind: :assistant_message_completed,
+            content: content,
+            metadata: %{}
+          })
 
-  def apply(state, %Event{kind: :tool_started, data: data}),
-    do: State.append(state, :tool_started, Map.get(data, :command, "tool started"), data)
+        %{state | blocks: blocks}
+
+      _ ->
+        State.append(state, :assistant_message_completed, content)
+    end
+  end
+
+  def apply(state, %Event{kind: :tool_started}), do: State.status(state, :working)
 
   def apply(state, %Event{kind: :tool_output, data: data}),
     do: State.append(state, :tool_output, Map.get(data, :content, ""), data)
 
-  def apply(state, %Event{kind: :tool_completed, data: data}),
-    do: State.append(state, :tool_completed, Map.get(data, :summary, "tool completed"), data)
+  def apply(state, %Event{kind: :tool_completed}), do: State.status(state, :working)
 
   def apply(state, %Event{kind: :diff, data: data}),
     do: State.append(state, :diff, Map.get(data, :content, ""), data)

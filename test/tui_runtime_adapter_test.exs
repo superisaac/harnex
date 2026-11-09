@@ -19,4 +19,29 @@ defmodule Harnex.TUIRuntimeAdapterTest do
     Code.ensure_loaded!(RuntimeAdapter)
     assert function_exported?(RuntimeAdapter, :run_with_tui_events, 2)
   end
+
+  test "auto-approves workspace file reads" do
+    root = Path.join(System.tmp_dir!(), "harnex-tui-read-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(root)
+    File.write!(Path.join(root, "hello.txt"), "hello")
+
+    adapter =
+      Harnex.Model.Scripted.new([
+        %{tool_calls: [%{id: "read", name: "file_read", args: %{"path" => "hello.txt"}}]},
+        %{text: "done"}
+      ])
+
+    tools = Harnex.Tools.Registry.new([Harnex.Tools.FileRead])
+
+    assert {:ok, run_id, _pid} =
+             RuntimeAdapter.start("read it",
+               adapter: adapter,
+               tools: tools,
+               workspace: root,
+               subscriber: self()
+             )
+
+    assert_receive {:harnex, %{run_id: ^run_id, type: :run_completed}}, 1_000
+    refute_receive {:harnex_approval_request, _, _, "file_read", _}, 50
+  end
 end

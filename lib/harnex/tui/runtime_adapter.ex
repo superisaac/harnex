@@ -9,7 +9,7 @@ defmodule Harnex.TUI.RuntimeAdapter do
   @spec start(String.t(), keyword(), pid()) :: {:ok, String.t(), pid()} | {:error, term()}
   def start(prompt, opts \\ [], subscriber \\ self()) do
     opts = Keyword.put(opts, :subscriber, subscriber)
-    opts = Keyword.put_new(opts, :approve_tool, approval_callback(subscriber))
+    opts = Keyword.put_new(opts, :approve_tool, approval_callback(subscriber, opts[:workspace]))
     Harnex.start_run(prompt, opts)
   end
 
@@ -33,18 +33,35 @@ defmodule Harnex.TUI.RuntimeAdapter do
   def approve(_run_id, name, args, callback) when is_function(callback, 2),
     do: callback.(name, args)
 
-  defp approval_callback(subscriber) do
+  defp approval_callback(subscriber, workspace) do
     fn name, args ->
-      ref = make_ref()
-      send(subscriber, {:harnex_approval_request, self(), ref, name, args})
+      if workspace_read_allowed?(name, args, workspace) do
+        :allow
+      else
+        ref = make_ref()
+        send(subscriber, {:harnex_approval_request, self(), ref, name, args})
 
-      receive do
-        {:harnex_approval_response, ^ref, decision} -> decision
-      after
-        30_000 -> :deny
+        receive do
+          {:harnex_approval_response, ^ref, decision} -> decision
+        after
+          30_000 -> :deny
+        end
       end
     end
   end
+
+  defp workspace_read_allowed?(name, args, workspace)
+       when name in ["file_list", "file_read"] and is_binary(workspace) and is_map(args) do
+    path = args[:path] || args["path"] || "."
+    expanded = Path.expand(path, workspace)
+
+    case Harnex.Tools.Path.existing(expanded, Harnex.Tools.Path.root(%{workspace: workspace})) do
+      {:ok, _path, _root} -> true
+      _ -> false
+    end
+  end
+
+  defp workspace_read_allowed?(_, _, _), do: false
 
   @spec event_to_tui(Harnex.Events.Event.t()) :: Harnex.TUI.Event.t()
   def event_to_tui(event), do: Harnex.TUI.EventBridge.from_runtime(event)

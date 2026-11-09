@@ -45,36 +45,48 @@ defmodule Harnex.TUI.Fullscreen do
     saved_opts = :io.getopts()
     tty_state = terminal_setup(ansi)
 
-    try do
-      {skills, skill_errors} =
-        Harnex.Skills.Loader.discover_report(Keyword.get(opts, :skill_roots, []))
+    result =
+      try do
+        {skills, skill_errors} =
+          Harnex.Skills.Loader.discover_report(Keyword.get(opts, :skill_roots, []))
 
-      session_opts =
-        opts
-        |> Keyword.take([:auth_adapter, :renderer])
-        |> Keyword.put(:skills, skills)
-        |> Keyword.put(:skill_errors, skill_errors)
-        |> Keyword.put(:subscriber, event_pid)
-        |> Keyword.put(:run_opts, opts)
+        session_opts =
+          opts
+          |> Keyword.take([:auth_adapter, :renderer])
+          |> Keyword.put(:skills, skills)
+          |> Keyword.put(:skill_errors, skill_errors)
+          |> Keyword.put(:subscriber, event_pid)
+          |> Keyword.put(:run_opts, opts)
 
-      session = Session.new(session_opts)
+        session = Session.new(session_opts)
 
-      state =
-        new(Keyword.take(opts, [:width, :height, :transcript_limit, :verbose]) ++ [ansi: ansi])
+        state =
+          new(Keyword.take(opts, [:width, :height, :transcript_limit, :verbose]) ++ [ansi: ansi])
 
-      send(input_pid, :read)
-      render(state)
-      loop(session, state)
-    after
-      send(event_pid, :stop)
-      Process.exit(input_pid, :kill)
-      if is_list(saved_opts), do: :io.setopts(saved_opts)
-      terminal_restore(ansi, tty_state)
+        send(input_pid, :read)
+        render(state)
+        loop(session, state)
+      after
+        send(event_pid, :stop)
+        Process.exit(input_pid, :kill)
+        if is_list(saved_opts), do: :io.setopts(saved_opts)
+        terminal_restore(ansi, tty_state)
+      end
+
+    case result do
+      {:exited, run_id} when is_binary(run_id) ->
+        IO.puts("to resume run mix harnex.tui --resume #{run_id}")
+
+      _ ->
+        :ok
     end
+
+    :ok
   end
 
   defp loop(%Session{running: false} = session, _state) do
     await_shutdown(session.run_id, System.monotonic_time(:millisecond) + 1_000)
+    {:exited, session.run_id}
   end
 
   defp loop(session, state) do
