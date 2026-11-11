@@ -7,6 +7,7 @@ defmodule Harnex.MixProject do
       version: "0.1.0",
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
+      escript: [main_module: Harnex.CLI],
       deps: deps()
     ]
   end

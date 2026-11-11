@@ -1,5 +1,6 @@
 # 编译产物
 /_build/
+/harnex
 /cover/
 /deps/
 /doc/

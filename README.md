@@ -138,6 +138,33 @@ The command selects the OpenAI-compatible adapter and uses the configured
 environment variables. On a fresh checkout, run `mix compile` first to make
 the custom task available.
 
+### Standalone executable
+
+The project also provides an escript executable, so the TUI can be launched
+without `mix` and from any working directory. Build it from a checkout with:
+
+```sh
+mix escript.build
+```
+
+This creates `./harnex`. Install it into Mix's escript directory and make that
+directory available on `PATH`:
+
+```sh
+mix escript.install ./harnex --force
+export PATH="$HOME/.mix/escripts:$PATH"
+```
+
+Then run the same TUI options from any directory:
+
+```sh
+harnex --workspace /path/to/project
+```
+
+The executable bundles Harnex and its dependencies. It still requires an
+installed Erlang/Elixir runtime, as escripts do; `mix escript.install` is
+portable across projects but not across operating systems or CPU architectures.
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
