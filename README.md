@@ -105,6 +105,15 @@ before starting the application:
 config :harnex, :max_stored_runs, 2_000
 ```
 
+To print the recorded conversation for a run in a human-readable form, use:
+
+```sh
+mix harnex.inspect RUN_ID
+```
+
+The report includes each user, assistant, and tool-result message, plus tool
+names and arguments. It is plain text and does not emit JSON.
+
 Shell execution requests OS-level isolation by default. You can pass
 `tool_context: %{shell_isolation: :workspace}` explicitly. On macOS this uses the
 available sandbox backend, denies network access by default, and allows writes
@@ -159,7 +168,12 @@ Then run the same TUI options from any directory:
 
 ```sh
 harnex --workspace /path/to/project
+harnex tui --workspace /path/to/project
+harnex inspect RUN_ID
 ```
+
+The `tui` subcommand is optional; when no subcommand is given, `harnex`
+starts the TUI. `inspect` prints a stored conversation in plain text.
 
 The executable bundles Harnex and its dependencies. It still requires an
 installed Erlang/Elixir runtime, as escripts do; `mix escript.install` is

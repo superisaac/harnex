@@ -23,6 +23,16 @@ defmodule Harnex.CLI do
     info = Keyword.get(opts, :info, &IO.puts/1)
     start_app = Keyword.get(opts, :start_app, fn -> Application.ensure_all_started(:harnex) end)
 
+    {command, command_args} = command(args)
+
+    if command == :inspect do
+      run_inspect(command_args, info, start_app)
+    else
+      run_tui(command_args, info, start_app)
+    end
+  end
+
+  defp run_tui(args, info, start_app) do
     if "--help" in args or "-h" in args do
       info.(usage())
       :ok
@@ -45,13 +55,34 @@ defmodule Harnex.CLI do
     end
   end
 
+  defp run_inspect([run_id], info, start_app) do
+    with :ok <- start_application(start_app),
+         {:ok, report} <- Harnex.RunInspector.report(run_id) do
+      info.(report)
+      :ok
+    else
+      {:error, :not_found} -> {:error, "Run not found: #{run_id}"}
+      {:error, reason} -> {:error, "unable to inspect run: #{inspect(reason)}"}
+    end
+  end
+
+  defp run_inspect(_args, _info, _start_app),
+    do: {:error, "usage: harnex inspect RUN_ID"}
+
+  defp command(["tui" | args]), do: {:tui, args}
+  defp command(["inspect" | args]), do: {:inspect, args}
+  defp command(args), do: {:tui, args}
+
   def usage do
     """
     Start the Harnex full-screen terminal UI.
 
-        harnex [--workspace DIR] [--endpoint URL] [--model NAME]
+    harnex [--workspace DIR] [--endpoint URL] [--model NAME]
+    harnex tui [--workspace DIR] [--endpoint URL] [--model NAME]
                [--skill-root PATH] [--no-ansi] [--verbose]
                [--resume SESSION_ID]
+
+    harnex inspect RUN_ID
 
     The workspace defaults to the current directory.
     """
